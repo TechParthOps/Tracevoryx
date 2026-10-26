@@ -1,0 +1,83 @@
+{
+  "description": "Synthetic TrustWeave fixtures: benign workflow, attack chain, ambiguous pair.",
+  "scenarios": {
+    "benign_agent_workflow": [
+      {
+        "event_type": "agent_registered",
+        "source": "synthetic",
+        "actor": "agent:summarizer",
+        "target": "summarizer",
+        "trust_label": "TRUSTED_CONFIGURATION",
+        "details": {
+          "permissions": [
+            "file_read"
+          ]
+        }
+      },
+      {
+        "event_type": "content_ingested",
+        "source": "synthetic",
+        "actor": "agent:summarizer",
+        "target": "https://docs.example.com/spec",
+        "trust_label": "UNTRUSTED_EXTERNAL_CONTENT"
+      },
+      {
+        "event_type": "file_access",
+        "source": "synthetic",
+        "actor": "agent:summarizer",
+        "target": "C:/work/report.md",
+        "trust_label": "UNKNOWN"
+      }
+    ],
+    "exfiltration_chain": [
+      {
+        "event_type": "content_ingested",
+        "source": "synthetic",
+        "actor": "agent:research",
+        "target": "http://untrusted.example/payload",
+        "trust_label": "UNTRUSTED_EXTERNAL_CONTENT"
+      },
+      {
+        "event_type": "file_access",
+        "source": "synthetic",
+        "actor": "agent:research",
+        "target": "C:/Users/u/.ssh/id_rsa",
+        "trust_label": "SENSITIVE_DATA",
+        "details": {
+          "sensitive": true
+        }
+      },
+      {
+        "event_type": "connection",
+        "source": "synthetic",
+        "actor": "agent:research",
+        "destination": "203.0.113.66:443",
+        "details": {
+          "data_sent": true,
+          "approved": false
+        }
+      }
+    ],
+    "ambiguous_pair_must_not_correlate": [
+      {
+        "event_type": "file_access",
+        "source": "synthetic",
+        "actor": "agent:alpha",
+        "target": "C:/Users/u/.aws/credentials",
+        "trust_label": "SENSITIVE_DATA",
+        "details": {
+          "sensitive": true
+        }
+      },
+      {
+        "event_type": "connection",
+        "source": "synthetic",
+        "actor": "agent:beta",
+        "destination": "198.51.100.7:8080",
+        "details": {
+          "approved": false
+        }
+      }
+    ]
+  }
+}

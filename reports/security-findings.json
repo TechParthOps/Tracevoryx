@@ -1,0 +1,174 @@
+{
+  "schema": "tracevoryx-security-findings/1",
+  "generated": "2026-10-25",
+  "product": "Tracevoryx 0.3.0 (formerly TrustWeave 0.2.0)",
+  "scope": "local instances only; no external systems probed",
+  "summary": {
+    "confirmed": 14,
+    "fixed": 14,
+    "accepted_boundaries": 4,
+    "scanner_false_positives": 3,
+    "tests_total": 244,
+    "tests_passing": 244,
+    "perf_deselected_in_fast_mode": 3,
+    "live_checks": 31,
+    "live_checks_passing": 31
+  },
+  "findings": [
+    {
+      "id": "TVX-001",
+      "severity": "critical",
+      "status": "fixed",
+      "title": "fs.read could read audit key and token store",
+      "cwe": [
+        "CWE-22",
+        "CWE-732"
+      ],
+      "regression": "tests/test_security_adversarial.py::TestFSDenylist"
+    },
+    {
+      "id": "TVX-002",
+      "severity": "critical",
+      "status": "fixed",
+      "title": "SSRF: metadata ranges allowed, rebinding/redirect/proxy bypasses",
+      "cwe": [
+        "CWE-918",
+        "CWE-367"
+      ],
+      "regression": "tests/test_security_adversarial.py::TestSSRFGuard"
+    },
+    {
+      "id": "TVX-003",
+      "severity": "high",
+      "status": "fixed",
+      "title": "Approval single-use race (double spend)",
+      "cwe": [
+        "CWE-362"
+      ],
+      "regression": "tests/test_security_adversarial.py::TestApprovalAtomicity"
+    },
+    {
+      "id": "TVX-004",
+      "severity": "high",
+      "status": "fixed",
+      "title": "Caller-supplied agent identity enables cross-identity approval replay",
+      "cwe": [
+        "CWE-289"
+      ],
+      "regression": "tests/test_security_adversarial.py::TestAgentIdentityBinding"
+    },
+    {
+      "id": "TVX-101",
+      "severity": "high",
+      "status": "fixed",
+      "title": "Shadow mode executed would-be-denied privileged calls",
+      "cwe": [
+        "CWE-863"
+      ],
+      "regression": "tests/test_security_adversarial.py::TestShadowWithholding"
+    },
+    {
+      "id": "TVX-102",
+      "severity": "high",
+      "status": "fixed",
+      "title": "Long-lived bearer token in SSE URLs",
+      "cwe": [
+        "CWE-598"
+      ],
+      "regression": "tests/test_security_adversarial.py::TestStreamTickets"
+    },
+    {
+      "id": "TVX-103",
+      "severity": "high",
+      "status": "fixed",
+      "title": "Caller-reported results recorded as observed evidence",
+      "cwe": [
+        "CWE-345"
+      ],
+      "regression": "tests/test_security_adversarial.py::test_reported_results_not_marked_observed"
+    },
+    {
+      "id": "TVX-104",
+      "severity": "medium",
+      "status": "fixed",
+      "title": "Unbounded rate-limiter/lockout state",
+      "cwe": [
+        "CWE-770"
+      ],
+      "regression": "tests/test_security_adversarial.py::test_rate_limiter_state_bounded"
+    },
+    {
+      "id": "TVX-105",
+      "severity": "medium",
+      "status": "fixed",
+      "title": "Enforcement choice reverted on restart",
+      "cwe": [
+        "CWE-1188"
+      ],
+      "regression": "tracevoryx/core/policy.py persistence + suite"
+    },
+    {
+      "id": "TVX-106",
+      "severity": "medium",
+      "status": "fixed",
+      "title": "Retention permanently invalidated hash chain",
+      "cwe": [],
+      "regression": "tests/test_security_adversarial.py::TestRetentionChainAnchor"
+    },
+    {
+      "id": "TVX-107",
+      "severity": "medium",
+      "status": "fixed",
+      "title": "Handoff open token derivable from public record",
+      "cwe": [
+        "CWE-330"
+      ],
+      "regression": "tests/test_handoff_adversarial.py::test_record_without_token_cannot_be_derived"
+    },
+    {
+      "id": "TVX-108",
+      "severity": "medium",
+      "status": "fixed",
+      "title": "No token expiry; SSE auth bypassed lockout",
+      "cwe": [
+        "CWE-613"
+      ],
+      "regression": "tests/test_security_adversarial.py::TestTokenExpiry"
+    },
+    {
+      "id": "TVX-201..212",
+      "severity": "hardening",
+      "status": "fixed",
+      "title": "Deep-JSON 500, content-length 500, chunked body uncapped, missing security headers, list redaction gap, key file perms, TW_* env unused, MCP param validation, error leakage, policy regex cap, CI pip-audit masking, dead code + test hygiene",
+      "cwe": [],
+      "regression": "tests/test_security_adversarial.py + tests/test_release_hygiene.py"
+    }
+  ],
+  "accepted_boundaries": [
+    "attacker with DB + audit_key defeats checkpoints (mitigations documented)",
+    "only gateway-routed calls enforced; delegated reports are caller-reported",
+    "psutil sampling is not kernel audit",
+    "deterministic DLP is evadable; clipboard is post-hoc"
+  ],
+  "scanner_triage": [
+    {
+      "tool": "bandit",
+      "rule": "B608",
+      "count": 2,
+      "verdict": "false-positive",
+      "reason": "f-string interpolates only ?-placeholder lists; values bound as parameters"
+    },
+    {
+      "tool": "pip-audit",
+      "finding": "certifi PYSEC-2026-4320",
+      "verdict": "fixed",
+      "action": "upgraded certifi to 2026.10.19, re-run clean"
+    },
+    {
+      "tool": "release-scanner",
+      "finding": "synthetic detector fixtures",
+      "verdict": "allowlisted",
+      "reason": "documented synthetic values (AWS docs example key, deterministic fake token, bare PEM header)"
+    }
+  ]
+}

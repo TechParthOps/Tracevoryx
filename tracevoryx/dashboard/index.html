@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tracevoryx — Cross-layer AI Security</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🕸</text></svg>">
+</head>
+<body>
+<div id="login" class="login-wrap hidden">
+  <div class="login-card">
+    <div class="brand"><span class="logo">🕸️</span> Tracevoryx</div>
+    <p>Cross-layer AI security & data-flow defense</p>
+    <input id="token-input" type="password" placeholder="API token (issued at first start / trustweave rotate-token)">
+    <button id="login-btn">Unlock</button>
+    <p class="muted" id="login-error"></p>
+  </div>
+</div>
+
+<div id="app" class="shell hidden">
+  <aside class="sidebar">
+    <div class="brand"><span class="logo">🕸️</span><div><b>Tracevoryx</b><small id="shadow-badge"></small></div></div>
+    <nav id="nav">
+      <a data-view="overview" class="active">◎ Overview</a>
+      <a data-view="graph">🕸 Provenance Graph</a>
+      <a data-view="events">≡ Event Stream</a>
+      <a data-view="guard">🤖 Agent Guard</a>
+      <a data-view="approvals">✋ Approvals</a>
+      <a data-view="privacy">👁 Privacy Guard</a>
+      <a data-view="apimap">⌗ API Mapper</a>
+      <a data-view="findings">⚠ Findings</a>
+      <a data-view="settings">⚗ Settings</a>
+    </nav>
+    <div class="sidebar-foot" id="side-status"></div>
+  </aside>
+
+  <main class="content">
+    <header class="topbar">
+      <h1 id="view-title">Overview</h1>
+      <span id="live-dot" class="dot"></span><span class="muted">live</span>
+    </header>
+
+    <section id="view-overview" class="view">
+      <div class="cards" id="stat-cards"></div>
+      <div class="grid-2">
+        <div class="panel"><h3>Event types & pipeline health</h3><div id="ov-types" class="list"></div></div>
+        <div class="panel"><h3>Open findings</h3><div id="ov-findings" class="list"></div></div>
+      </div>
+      <div class="panel"><h3>Live stream (SSE)</h3><div id="stream-feed" class="list"></div></div>
+    </section>
+
+    <section id="view-graph" class="view hidden">
+      <div class="panel">
+        <h3>Cross-layer provenance graph</h3>
+        <p class="muted small">Nodes are entities seen in real events; edges are observed relations. Red outline = tainted by UNTRUSTED_EXTERNAL_CONTENT. Dashed = inferred, not directly observed. Amber fill = SENSITIVE_DATA.</p>
+        <div class="legend">
+          <span class="lg"><i class="nd agent"></i>agent</span>
+          <span class="lg"><i class="nd content"></i>content</span>
+          <span class="lg"><i class="nd clipboard"></i>clipboard</span>
+          <span class="lg"><i class="nd file"></i>file</span>
+          <span class="lg"><i class="nd process"></i>process</span>
+          <span class="lg"><i class="nd destination"></i>destination</span>
+          <span class="lg"><i class="nd tool"></i>tool</span>
+        </div>
+        <svg id="graph-svg" width="100%" height="520"></svg>
+        <div id="graph-info" class="muted small"></div>
+      </div>
+    </section>
+
+    <section id="view-events" class="view hidden">
+      <div class="filters">
+        <select id="f-type"><option value="">type: all</option></select>
+        <input id="f-actor" placeholder="actor contains…">
+      </div>
+      <div class="panel"><div id="ev-table" class="table"></div></div>
+    </section>
+
+    <section id="view-guard" class="view hidden">
+      <div class="grid-2">
+        <div class="panel"><h3>Registry</h3><div id="reg-list" class="list"></div></div>
+        <div class="panel"><h3>Register</h3>
+          <input id="rg-name" placeholder="agent name">
+          <input id="rg-perms" placeholder="permissions (csv)">
+          <button id="rg-agent">Register agent</button>
+          <input id="rt-name" placeholder="tool name (e.g. shell.exec)">
+          <select id="rt-allowed"><option value="">allowed: undecided</option><option value="true">allowed</option><option value="false">disallowed</option></select>
+          <button id="rt-tool">Register tool</button>
+        </div>
+      </div>
+      <div class="panel"><h3>Gateway test (inspect a tool call)</h3>
+        <input id="gc-agent" placeholder="agent name">
+        <input id="gc-tool" placeholder="tool name">
+        <input id="gc-args" placeholder='arguments JSON, e.g. {"cmd": "ls"}'>
+        <button id="gc-run">Inspect call</button>
+        <div id="gc-result"></div>
+      </div>
+      <div class="panel"><h3>Tool-call audit</h3><div id="gc-events" class="table"></div></div>
+    </section>
+
+    <section id="view-approvals" class="view hidden">
+      <div class="panel"><div id="ap-list" class="list"></div></div>
+    </section>
+
+    <section id="view-privacy" class="view hidden">
+      <div class="panel"><h3>Inspect text (DLP)</h3>
+        <textarea id="pv-text" rows="5" placeholder="paste text…"></textarea>
+        <label class="chk"><input type="checkbox" id="pv-reversible"> reversible redaction (session vault)</label>
+        <button id="pv-scan">Scan</button>
+        <div id="pv-result"></div>
+      </div>
+      <div class="grid-2">
+        <div class="panel"><h3>Reversal</h3>
+          <input id="rv-ph" placeholder="[TW:REDACT:xxxx]">
+          <button id="rv-go">Reveal original</button>
+          <div id="rv-out"></div>
+        </div>
+        <div class="panel"><h3>Clipboard sensor</h3>
+          <div id="pv-clip"></div>
+          <button id="pv-clip-start">Start</button>
+          <button id="pv-clip-stop">Stop</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-apimap" class="view hidden">
+      <div class="panel"><h3>Ingest capture</h3>
+        <input type="file" id="am-file">
+        <button id="am-ingest">Ingest PCAP/HAR</button>
+        <span id="am-result" class="muted"></span>
+      </div>
+      <div class="panel"><h3>Observed endpoints</h3><div id="am-inv" class="table"></div></div>
+      <div class="panel"><h3>Findings</h3><div id="am-findings" class="list"></div></div>
+    </section>
+
+    <section id="view-findings" class="view hidden">
+      <div class="panel"><div id="fd-list" class="list"></div></div>
+    </section>
+
+    <section id="view-settings" class="view hidden">
+      <div class="grid-2">
+        <div class="panel"><h3>Enforcement mode</h3>
+          <div id="set-shadow"></div>
+          <button id="set-shadow-on">Enable shadow mode</button>
+          <button id="set-shadow-off">Disable shadow (ENFORCE)</button>
+        </div>
+        <div class="panel"><h3>Audit integrity</h3><div id="set-chain"></div>
+          <button id="set-verify">Verify chain</button>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="panel"><h3>API token</h3><button id="set-rotate">Rotate token</button></div>
+        <div class="panel"><h3>Retention</h3><button id="set-cleanup">Run cleanup</button></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="toast" class="toast hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>

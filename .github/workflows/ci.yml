@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint (ruff)
+        run: |
+          pip install ruff
+          ruff check tracevoryx trustweave tests scripts
+      - name: Compile check
+        run: python -m compileall tracevoryx trustweave tests -q
+      - name: Unit + integration + security tests
+        run: python -m pytest tests/ -q --deselect tests/test_perf.py
+      - name: Performance tests
+        run: python -m pytest tests/test_perf.py -q
+      - name: Benchmarks (record, no gate)
+        run: python benchmarks/run_bench.py 1000
+
+  security-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install -e ".[dev]" pip-audit bandit[toml] ruff
+      - name: Freeze environment for auditing
+        run: pip freeze > /tmp/reqs.txt
+      - name: Dependency vulnerabilities (fail on findings)
+        run: pip-audit -r /tmp/reqs.txt --strict
+      - name: Static security analysis (bandit, medium+)
+        run: bandit -r tracevoryx -ll --exclude tracevoryx/dashboard
+      - name: Release artifact hygiene (staging + secret scan)
+        run: python -m pytest tests/test_release_hygiene.py -q
+      - name: Secret scan (tracked files)
+        shell: python
+        run: |
+          import pathlib, re, subprocess, sys
+          sys.path.insert(0, ".")
+          from scripts.package_release import (SECRET_PATTERNS,
+                                               ALLOWLISTED_SECRET_VALUES)
+          tracked = subprocess.run(["git", "ls-files"], capture_output=True,
+                                   text=True).stdout.split()
+          hits = []
+          for f in tracked:
+              p = pathlib.Path(f)
+              if not p.is_file():
+                  continue
+              try:
+                  text = p.read_text(encoding="utf-8", errors="ignore")
+              except OSError:
+                  continue
+              for pat, label in SECRET_PATTERNS:
+                  for m in re.finditer(pat, text):
+                      if m.group(0) not in ALLOWLISTED_SECRET_VALUES:
+                          hits.append(f"{f}: {label}")
+          if hits:
+              print("SECRET-LIKE STRINGS FOUND:")
+              print("\n".join(sorted(set(hits))))
+              sys.exit(1)
+          print("no secrets found in tracked files")
