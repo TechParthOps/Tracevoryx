@@ -1,4 +1,4 @@
-# Python
+﻿# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -41,4 +41,5 @@ bench_out/
 # OS artifacts
 Thumbs.db
 .DS_Store
-tests/ 
+
+tests/
