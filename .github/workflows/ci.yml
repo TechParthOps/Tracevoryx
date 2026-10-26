@@ -41,7 +41,7 @@ jobs:
       - name: Lint published source
         run: python -m ruff check tracevoryx trustweave scripts benchmarks
 
-      - name: Compile published Python packages
+      - name: Compile published Python source
         run: python -m compileall -q tracevoryx trustweave scripts benchmarks
 
       - name: Build distributions
@@ -50,6 +50,7 @@ jobs:
   security-scan:
     name: Security scan
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
 
@@ -65,11 +66,53 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-      - name: Install project and security tools
-        run: python -m pip install -e . pip-audit "bandit[toml]" ruff
+      - name: Install security tools
+        run: python -m pip install pip-audit "bandit[toml]" ruff
 
-      - name: Dependency vulnerability audit
-        run: python -m pip_audit --skip-editable --strict
+      - name: Extract declared dependencies
+        shell: python
+        run: |
+          import pathlib
+          import tomllib
+
+          project_file = pathlib.Path("pyproject.toml")
+          config = tomllib.loads(project_file.read_text(encoding="utf-8"))
+          project = config.get("project", {})
+
+          if "dependencies" not in project:
+              raise SystemExit(
+                  "pyproject.toml does not declare project.dependencies. "
+                  "Review dynamic dependency configuration before auditing."
+              )
+
+          dependencies = list(project["dependencies"])
+
+          # Include declared development/test extras when available.
+          optional = project.get("optional-dependencies", {})
+          for group, entries in optional.items():
+              print(f"Including optional dependency group: {group}")
+              dependencies.extend(entries)
+
+          if not dependencies:
+              print("No third-party dependencies are declared.")
+
+          output = pathlib.Path("tracevoryx-audit-requirements.txt")
+          output.write_text(
+              "\n".join(sorted(set(dependencies))) + "\n",
+              encoding="utf-8",
+          )
+          print(f"Prepared {len(set(dependencies))} dependency declarations.")
+
+      - name: Audit declared dependencies
+        run: |
+          if [ -s tracevoryx-audit-requirements.txt ]; then
+            python -m pip_audit \
+              --requirement tracevoryx-audit-requirements.txt \
+              --strict
+          else
+            echo "No declared third-party dependencies to audit."
+          fi
+        shell: bash
 
       - name: Static security analysis
         run: bandit -r tracevoryx -ll --exclude tracevoryx/dashboard
