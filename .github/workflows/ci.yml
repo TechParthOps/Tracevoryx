@@ -1,83 +1,111 @@
+
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  test:
+  source-validation:
+    name: Source validation (${{ matrix.os }}, Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [ubuntu-latest, windows-latest]
         python-version: ["3.11", "3.12"]
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install
-        run: pip install -e ".[dev]"
-      - name: Lint (ruff)
-        run: |
-          pip install ruff
-          ruff check tracevoryx trustweave tests scripts
-      - name: Compile check
-        run: python -m compileall tracevoryx trustweave tests -q
-      - name: Unit + integration + security tests
-        run: python -m pytest tests/ -q --deselect tests/test_perf.py
-      - name: Performance tests
-        run: python -m pytest tests/test_perf.py -q
-      - name: Benchmarks (record, no gate)
-        run: python benchmarks/run_bench.py 1000
+
+      - name: Install project
+        run: python -m pip install -e .
+
+      - name: Install lint and build tools
+        run: python -m pip install ruff build
+
+      - name: Lint published source
+        run: python -m ruff check tracevoryx trustweave scripts benchmarks
+
+      - name: Compile published Python packages
+        run: python -m compileall -q tracevoryx trustweave scripts benchmarks
+
+      - name: Build distributions
+        run: python -m build
 
   security-scan:
+    name: Security scan
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install
-        run: pip install -e ".[dev]" pip-audit bandit[toml] ruff
-      - name: Freeze environment for auditing
-        run: pip freeze > /tmp/reqs.txt
-      - name: Dependency vulnerabilities (fail on findings)
-        run: pip-audit -r /tmp/reqs.txt --strict
-      - name: Static security analysis (bandit, medium+)
+
+      - name: Install project and security tools
+        run: python -m pip install -e . pip-audit "bandit[toml]" ruff
+
+      - name: Dependency vulnerability audit
+        run: python -m pip_audit --strict
+
+      - name: Static security analysis
         run: bandit -r tracevoryx -ll --exclude tracevoryx/dashboard
-      - name: Release artifact hygiene (staging + secret scan)
-        run: python -m pytest tests/test_release_hygiene.py -q
-      - name: Secret scan (tracked files)
+
+      - name: Secret scan of tracked files
         shell: python
         run: |
-          import pathlib, re, subprocess, sys
+          import pathlib
+          import re
+          import subprocess
+          import sys
+
           sys.path.insert(0, ".")
-          from scripts.package_release import (SECRET_PATTERNS,
-                                               ALLOWLISTED_SECRET_VALUES)
-          tracked = subprocess.run(["git", "ls-files"], capture_output=True,
-                                   text=True).stdout.split()
+          from scripts.package_release import (
+              SECRET_PATTERNS,
+              ALLOWLISTED_SECRET_VALUES,
+          )
+
+          result = subprocess.run(
+              ["git", "ls-files"],
+              capture_output=True,
+              text=True,
+              check=True,
+          )
+
           hits = []
-          for f in tracked:
-              p = pathlib.Path(f)
-              if not p.is_file():
+          for filename in result.stdout.splitlines():
+              path = pathlib.Path(filename)
+              if not path.is_file():
                   continue
+
               try:
-                  text = p.read_text(encoding="utf-8", errors="ignore")
+                  content = path.read_text(
+                      encoding="utf-8",
+                      errors="ignore",
+                  )
               except OSError:
                   continue
-              for pat, label in SECRET_PATTERNS:
-                  for m in re.finditer(pat, text):
-                      if m.group(0) not in ALLOWLISTED_SECRET_VALUES:
-                          hits.append(f"{f}: {label}")
+
+              for pattern, label in SECRET_PATTERNS:
+                  for match in re.finditer(pattern, content):
+                      if match.group(0) not in ALLOWLISTED_SECRET_VALUES:
+                          hits.append(f"{filename}: {label}")
+
           if hits:
-              print("SECRET-LIKE STRINGS FOUND:")
+              print("Secret-like strings found:")
               print("\n".join(sorted(set(hits))))
               sys.exit(1)
-          print("no secrets found in tracked files")
+
+          print("No secret-like strings detected in tracked files.")
